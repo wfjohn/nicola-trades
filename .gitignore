@@ -1,0 +1,10 @@
+data/
+reports/*.xlsx
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.egg-info/
+dist/
+.venv/
+venv/
