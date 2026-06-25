@@ -94,13 +94,13 @@ def write_comparison(result: dict, output: Path, tx_type: str = "Sell") -> Path:
     _write_sheet(wb, "Summary by Fund", summary.rename(columns=summary_cols))
     _write_sheet(
         wb,
-        f"Removed ({date1} → gone by {date2})",
+        f"Removed ({date1})",
         removed.rename(columns=detail_cols),
         row_fill=RED_BG,
     )
     _write_sheet(
         wb,
-        f"Added (new in {date2})",
+        f"Added ({date2})",
         added.rename(columns=detail_cols),
         row_fill=GREEN_BG,
     )

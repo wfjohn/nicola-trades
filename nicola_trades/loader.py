@@ -67,7 +67,13 @@ def latest_per_date(paths: list[Path]) -> list[Path]:
 
 def load_file(path: Path) -> pd.DataFrame:
     """Parse a Pending Trades Excel file and return a normalised DataFrame."""
-    df = pd.read_excel(path, dtype={"SIN": str, "Tax ID": str})
+    # Some files have a PB_CACHE sheet first; find the actual data sheet by name.
+    xl = pd.ExcelFile(path)
+    sheet = next(
+        (s for s in xl.sheet_names if "pending trades" in s.lower()),
+        xl.sheet_names[-1],  # fall back to last sheet
+    )
+    df = xl.parse(sheet, dtype={"SIN": str, "Tax ID": str})
 
     # Keep only columns we need, rename to DB-friendly names
     keep = {k: v for k, v in COLUMN_MAP.items() if k in df.columns}

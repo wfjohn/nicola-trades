@@ -48,7 +48,7 @@ def main(folder: str, force_all: bool):
 
     # Keep only the latest-modified file per calendar date
     candidates = loader.latest_per_date(xlsx_files)
-    click.echo(f"Found {len(xlsx_files)} files → {len(candidates)} unique dates to consider.")
+    click.echo(f"Found {len(xlsx_files)} files -> {len(candidates)} unique dates to consider.")
 
     conn = db.connect()
     db.init(conn)
