@@ -25,6 +25,7 @@ COLUMN_MAP = {
     "Shares/Units":  "shares_units",
     "Plan Desc.":    "plan_desc",
     "Fund Desc":     "fund_desc",
+    "Dealer Acct #": "dealer_acct_num",
 }
 
 
@@ -53,9 +54,12 @@ def latest_per_date(paths: list[Path]) -> list[Path]:
     """
     Given a list of snapshot paths, keep only the most-recently-modified file
     for each calendar date so we don't double-ingest intraday saves.
+    Files containing "migration test" in the name are always skipped.
     """
     by_date: dict[date, Path] = {}
     for p in paths:
+        if "migration test" in p.name.lower():
+            continue
         d = snapshot_date(p.name)
         if d is None:
             continue

@@ -95,6 +95,15 @@ def main(folder: str, force_all: bool):
             # Delete existing trades for this snapshot (handles re-ingest)
             conn.execute("DELETE FROM trades WHERE snapshot_id = ?", (snap_id,))
 
+            # Remove any other snapshots for the same date (different filename)
+            old_ids = conn.execute(
+                "SELECT id FROM snapshots WHERE snapshot_date = ? AND id != ?",
+                (str(snap_date), snap_id),
+            ).fetchall()
+            for (old_id,) in old_ids:
+                conn.execute("DELETE FROM trades WHERE snapshot_id = ?", (old_id,))
+                conn.execute("DELETE FROM snapshots WHERE id = ?", (old_id,))
+
             rows = [
                 (
                     snap_id,
@@ -111,6 +120,7 @@ def main(folder: str, force_all: bool):
                     row.usd_net_amt,
                     row.shares_units,
                     row.plan_desc,
+                    getattr(row, 'dealer_acct_num', None),
                 )
                 for row in df.itertuples(index=False)
             ]
@@ -119,8 +129,9 @@ def main(folder: str, force_all: bool):
                 INSERT OR IGNORE INTO trades
                     (snapshot_id, wire_order_num, tx_type, investor_name, sin,
                      fund_id, canonical_fund, trade_date, settle_date,
-                     gross_amt, cdn_net_amt, usd_net_amt, shares_units, plan_desc)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     gross_amt, cdn_net_amt, usd_net_amt, shares_units, plan_desc,
+                     dealer_acct_num)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 rows,
             )
