@@ -15,10 +15,14 @@ import click
 
 from nicola_trades import db, loader
 
+# The live SharePoint sync. Note the same-named "Fund Operations Team-AMC -
+# 2025_Octonward" folder one level up is a stale partial sync — new snapshots
+# only land here, in the subfolder of the Pending Trades library.
 DEFAULT_FOLDER = (
     Path.home()
     / "Nicola Wealth"
-    / "Fund Operations Team-AMC - 2025_Octonward"
+    / "Fund Operations Team-AMC - Pending Trades"
+    / "2025_Octonward"
 )
 
 

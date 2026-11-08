@@ -1,0 +1,258 @@
+<title>Pending Redemptions by Month</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: summary tiles, one stacked monthly bar chart (the Dec 2029 queue bar drawn with a scale break),
+   then a fund x month table that expands to share classes. Neutrals and type match the sibling redemption pages. */
+:root {
+  --bg:#F4F5F9; --panel:#FFFFFF; --border:#DDE1EB;
+  --ink-1:#18243C; --ink-2:#4B5572; --ink-m:#7D869E;
+  --grid:#E6E9F2; --axis:#C8CEDC; --band:rgba(24,36,60,0.035);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+  --mono: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --bg:#0F1720; --panel:#192335; --border:#263348;
+  --ink-1:#E3EAF7; --ink-2:#8897B8; --ink-m:#6B7B98;
+  --grid:#1E2D42; --axis:#2C3B54; --band:rgba(227,234,247,0.04);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0F1720; --panel:#192335; --border:#263348;
+  --ink-1:#E3EAF7; --ink-2:#8897B8; --ink-m:#6B7B98;
+  --grid:#1E2D42; --axis:#2C3B54; --band:rgba(227,234,247,0.04);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink-1);font-family:var(--sans);font-size:14px;line-height:1.5;
+  padding-block:32px 52px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:18px;}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-m);}
+h1{font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin-top:8px;text-wrap:balance;}
+.sub{font-size:12.5px;color:var(--ink-2);margin-top:5px;max-width:78ch;}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;}
+.tile{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 16px;display:flex;flex-direction:column;gap:4px;min-width:0;}
+.tl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-m);}
+.tv{font-family:var(--mono);font-size:22px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1;}
+.tn{font-size:11px;color:var(--ink-2);}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px 16px 10px;position:relative;min-width:0;}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-bottom:10px;}
+.leg{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2);}
+.sw{width:11px;height:11px;border-radius:3px;flex-shrink:0;}
+.scroller{overflow-x:auto;}
+svg{display:block;width:100%;min-width:700px;height:auto;}
+.tip{position:absolute;pointer-events:none;z-index:20;background:var(--panel);border:1px solid var(--border);border-radius:6px;
+  padding:9px 12px;opacity:0;transition:opacity .08s;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.16);}
+.tip.on{opacity:1;}
+.tip-h{font-size:11.5px;font-weight:700;margin-bottom:4px;}
+.tip-r{display:flex;align-items:center;gap:8px;font-size:11px;line-height:1.7;color:var(--ink-2);}
+.tip-r span.k{flex:1;}
+.tip-r b{font-weight:600;color:var(--ink-1);font-family:var(--mono);font-variant-numeric:tabular-nums;}
+.tip-t{margin-top:4px;padding-top:4px;border-top:1px solid var(--border);}
+@media (prefers-reduced-motion:reduce){.tip{transition:none;}}
+.tbl-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
+.tbl-head h2{font-size:13px;font-weight:600;}
+.tbl-head p{font-size:11px;color:var(--ink-m);}
+.tbl{overflow-x:auto;}
+table{border-collapse:collapse;width:100%;font-size:11.5px;font-variant-numeric:tabular-nums;}
+th,td{padding:5px 8px;text-align:right;white-space:nowrap;}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--panel);}
+thead th{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-m);border-bottom:1px solid var(--border);font-weight:700;}
+thead th.q{color:var(--ink-1);}
+tbody tr.fam td{border-top:1px solid var(--grid);color:var(--ink-1);font-weight:600;}
+tbody tr.cls td{color:var(--ink-2);font-size:11px;}
+tbody tr.cls td:first-child{padding-left:30px;font-weight:400;}
+td.tot{font-weight:700;}
+td.qc{background:var(--band);}
+tfoot td{border-top:1px solid var(--border);font-weight:700;color:var(--ink-1);padding-top:8px;}
+button.exp{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:7px;border-radius:3px;}
+button.exp:focus-visible{outline:2px solid var(--s1);outline-offset:2px;}
+button.exp .car{display:inline-block;width:9px;color:var(--ink-m);transition:transform .12s;}
+button.exp[aria-expanded="true"] .car{transform:rotate(90deg);}
+@media (prefers-reduced-motion:reduce){button.exp .car{transition:none;}}
+.note{font-size:11px;color:var(--ink-m);line-height:1.65;max-width:110ch;}
+.note b{color:var(--ink-2);font-weight:600;}
+.notes{display:flex;flex-direction:column;gap:7px;}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Nicola Wealth &middot; Illiquid Funds &mdash; All Share Classes &middot; CAD</div>
+    <h1>Pending Redemptions by Month</h1>
+    <p class="sub" id="sub">—</p>
+  </header>
+
+  <div class="tiles">
+    <div class="tile"><div class="tl">Total pending</div><div class="tv" id="t-all">—</div><div class="tn" id="t-all-n">—</div></div>
+    <div class="tile"><div class="tl">Next six months</div><div class="tv" id="t-6m">—</div><div class="tn" id="t-6m-n">—</div></div>
+    <div class="tile"><div class="tl">Scheduled beyond</div><div class="tv" id="t-later">—</div><div class="tn" id="t-later-n">—</div></div>
+    <div class="tile"><div class="tl">Real estate queue</div><div class="tv" id="t-q">—</div><div class="tn" id="t-q-n">—</div></div>
+  </div>
+
+  <div class="card">
+    <div class="legend" id="legend"></div>
+    <div class="scroller"><svg id="chart" role="img" aria-label="Stacked bar chart of pending redemptions in CAD by dealing month and fund, with the December 2029 real estate queue drawn with a scale break"></svg></div>
+    <div class="tip" id="tip"></div>
+  </div>
+
+  <div class="card">
+    <div class="tbl-head"><h2>By fund and share class</h2><p>CAD millions. Select a fund to show its share classes.</p></div>
+    <div class="tbl"><table><thead id="th"></thead><tbody id="tb"></tbody><tfoot id="tf"></tfoot></table></div>
+  </div>
+
+  <div class="notes" id="notes"></div>
+</div>
+
+<script>
+const D = __DATA__;
+const SERIES = [
+  {name:"Canadian Real Estate", fams:["Canadian Real Estate LP"], v:"--s1"},
+  {name:"U.S. Real Estate", fams:["U.S. Real Estate LP"], v:"--s2"},
+  {name:"Private Debt", fams:["Private Debt"], v:"--s3"},
+  {name:"Private Equity", fams:["Private Equity LP"], v:"--s4"},
+  {name:"Global Infrastructure", fams:["Global Infrastructure LP"], v:"--s5"},
+  {name:"Canadian Mortgage", fams:["Canadian Mortgage"], v:"--s6"},
+  {name:"Diversified Real Estate", fams:["Diversified Real Estate"], v:"--s7"},
+  {name:"Other", fams:["Diversified Private Assets","Venture Capital LP","Value Add Real Estate LP"], v:"--s8",
+   note:"Diversified Private Assets, Venture Capital, Value Add Real Estate"}
+];
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const mLab = k => { const [y, m] = k.split("-").map(Number); return MON[m-1] + " " + y; };
+const mShort = k => { const [y, m] = k.split("-").map(Number); return MON[m-1] + " '" + String(y).slice(2); };
+const human = s => { const [y, m, d] = s.split("-").map(Number); return MON[m-1] + " " + d + ", " + y; };
+const fM = v => Math.abs(v) >= 1e9 ? "$" + (v/1e9).toFixed(2) + "B" : "$" + (v/1e6).toFixed(1) + "M";
+const fCell = v => Math.abs(v) < 500 ? "—" : Math.abs(v) >= 1e5 ? (v/1e6).toFixed(1) : (v/1e6).toFixed(2);
+const full = v => "$" + Math.round(v).toLocaleString("en-US");
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const NS = "http://www.w3.org/2000/svg";
+function el(t, a, txt){ const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (txt != null) e.textContent = txt; return e; }
+
+const M = D.months, QI = M.indexOf(D.queue_month);
+const famByName = Object.fromEntries(D.funds.map(f => [f.family, f]));
+const SV = SERIES.map(s => M.map((_, i) => s.fams.reduce((a, f) => a + (famByName[f] ? famByName[f].cad[i] : 0), 0)));
+const colTot = M.map((_, i) => SV.reduce((a, s) => a + Math.max(s[i], 0), 0));
+const total = colTot.reduce((a, b) => a + b, 0);
+const sixEnd = (() => { const [y, m] = D.asof.split("-").map(Number); const t = m + 6; return (t > 12 ? y + 1 : y) + "-" + String(t > 12 ? t - 12 : t).padStart(2, "0"); })();
+const in6 = M.map(k => k <= sixEnd), isQ = M.map((_, i) => i === QI);
+const sum = f => colTot.reduce((a, v, i) => a + (f(i) ? v : 0), 0);
+
+document.getElementById("sub").textContent = "Redemption requests waiting to deal, by dealing month, as of " + human(D.asof) +
+  ". U.S. dollar share classes are converted at " + D.fx.toFixed(4) + " CAD per USD. December 2029 is the real estate queue: requests that have already dealt and are waiting to be funded.";
+document.getElementById("t-all").textContent = fM(total);
+document.getElementById("t-all-n").textContent = D.funds.reduce((a, f) => a + f.classes.length, 0) + " share classes, 10 funds";
+document.getElementById("t-6m").textContent = fM(sum(i => in6[i]));
+document.getElementById("t-6m-n").textContent = mLab(M[0]) + " to " + mLab(M.filter((k, i) => in6[i]).slice(-1)[0]);
+document.getElementById("t-later").textContent = fM(sum(i => !in6[i] && !isQ[i]));
+document.getElementById("t-later-n").textContent = "Venture Capital's schedule and one Global Infrastructure order, to Sep 2029";
+document.getElementById("t-q").textContent = fM(colTot[QI]);
+document.getElementById("t-q-n").textContent = "Canadian " + fM(SV[0][QI]) + " · U.S. " + fM(SV[1][QI]);
+
+/* legend */
+document.getElementById("legend").innerHTML = SERIES.map(s =>
+  '<span class="leg" title="' + (s.note || s.name) + '"><span class="sw" style="background:var(' + s.v + ')"></span>' + s.name + "</span>").join("");
+
+/* chart */
+const W = 1000, H = 400, ML = 62, MR = 14, MT = 34, MB = 56;
+const PW = W - ML - MR, PH = H - MT - MB;
+const STEPS = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+const niceMax = v => { const p = Math.pow(10, Math.floor(Math.log10(v))); return STEPS.find(s => s >= v / p - 1e-9) * p; };
+const YMAX = niceMax(Math.max(...colTot.filter((_, i) => i !== QI)) * 1.08);
+const GAPS = M.map((k, i) => i > 0 && (in6[i-1] !== in6[i] || isQ[i]) ? 1 : 0);   // visual gaps between groups
+const unit = PW / (M.length + GAPS.reduce((a, b) => a + b, 0) * 0.6);
+const xLeft = []; { let x = ML; M.forEach((_, i) => { if (GAPS[i]) x += unit * 0.6; xLeft.push(x); x += unit; }); }
+const bw = Math.min(40, unit * 0.62);
+const yOf = v => MT + PH * (1 - v / YMAX);
+let hot = null;
+
+function draw(){
+  const svg = document.getElementById("chart");
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.innerHTML = "";
+  const cG = css("--grid"), cA = css("--axis"), cM = css("--ink-m"), c1 = css("--ink-1"), c2 = css("--ink-2"), cP = css("--panel"), cB = css("--band");
+  /* group bands */
+  const groups = [[0, M.findIndex((_, i) => !in6[i]) - 1, "Next six months"], [M.findIndex((_, i) => !in6[i] && !isQ[i]), QI - 1, "Scheduled beyond"], [QI, QI, "Queue"]];
+  groups.forEach(([a, b, lab], gi) => {
+    if (a < 0 || b < a) return;
+    const x0 = xLeft[a] - unit * 0.12, x1 = xLeft[b] + unit + unit * 0.12 - unit * 0.24;
+    if (gi === 2) svg.appendChild(el("rect", {x: x0, y: MT - 22, width: x1 - x0, height: PH + 22, fill: cB}));
+    svg.appendChild(el("text", {x: x0 + 4, y: MT - 9, fill: cM, "font-size": 9.5, "font-weight": 700, "letter-spacing": ".08em", "font-family": "var(--sans)"}, lab.toUpperCase()));
+  });
+  for (let i = 0; i <= 5; i++){
+    const v = YMAX * i / 5, y = yOf(v);
+    svg.appendChild(el("line", {x1: ML, x2: ML + PW, y1: y, y2: y, stroke: i ? cG : cA, "stroke-width": i ? 1 : 1.4}));
+    svg.appendChild(el("text", {x: ML - 8, y: y + 3.5, "text-anchor": "end", fill: cM, "font-size": 10.5, "font-family": "var(--mono)"}, i ? "$" + Math.round(v / 1e6) + "M" : "$0"));
+  }
+  M.forEach((k, i) => {
+    const x = xLeft[i] + (unit - bw) / 2;
+    let base = 0; const broken = i === QI;
+    const scale = broken ? (YMAX * 0.92) / colTot[i] : 1;          // queue bar compressed to fit, with a break mark
+    const segs = [];
+    SERIES.forEach((s, si) => { const v = Math.max(SV[si][i], 0); if (v > 0) segs.push([si, v]); });
+    segs.forEach(([si, v], j) => {
+      const y0 = yOf(base * scale), y1 = yOf((base + v) * scale);
+      const top = j === segs.length - 1, h = Math.max(y0 - y1 - (top ? 0 : 2), 0.8);
+      const r = top ? Math.min(4, h, bw / 2) : 0, yy = y1;
+      const d = "M" + x + "," + (yy + h) + " L" + x + "," + (yy + r) + (r ? " Q" + x + "," + yy + " " + (x + r) + "," + yy + " L" + (x + bw - r) + "," + yy + " Q" + (x + bw) + "," + yy + " " + (x + bw) + "," + (yy + r) : " L" + (x + bw) + "," + yy) + " L" + (x + bw) + "," + (yy + h) + " Z";
+      svg.appendChild(el("path", {d, fill: css(SERIES[si].v), "data-col": i, opacity: hot == null || hot === i ? 1 : 0.35}));
+      base += v;
+    });
+    if (broken){   /* scale-break mark across the bar */
+      const yb = yOf(YMAX * 0.55);
+      svg.appendChild(el("path", {d: "M" + (x - 4) + "," + (yb + 4) + " L" + (x + bw / 2) + "," + (yb - 3) + " L" + (x + bw + 4) + "," + (yb + 4) + " L" + (x + bw + 4) + "," + (yb + 10) + " L" + (x + bw / 2) + "," + (yb + 3) + " L" + (x - 4) + "," + (yb + 10) + " Z", fill: cP}));
+    }
+    const top = yOf(colTot[i] * scale);
+    if (colTot[i] >= 5e6 || broken)
+      svg.appendChild(el("text", {x: x + bw / 2, y: top - 6, "text-anchor": "middle", fill: c1, "font-size": 11, "font-weight": 700, "font-family": "var(--mono)"}, fM(colTot[i])));
+    const lab = el("text", {x: x + bw / 2, y: MT + PH + 16, "text-anchor": "middle", fill: c2, "font-size": 10.5, "font-family": "var(--sans)"}, MON[+k.slice(5) - 1]);
+    svg.appendChild(lab);
+    if (i === 0 || k.slice(5) === "01" || GAPS[i])
+      svg.appendChild(el("text", {x: x + bw / 2, y: MT + PH + 30, "text-anchor": "middle", fill: cM, "font-size": 10, "font-family": "var(--sans)"}, k.slice(0, 4)));
+    svg.appendChild(el("rect", {x: xLeft[i], y: MT - 22, width: unit, height: PH + 22 + MB - 10, fill: "transparent", "data-i": i, cursor: "pointer"}));
+  });
+  svg.querySelectorAll("rect[data-i]").forEach(h => {
+    h.addEventListener("pointerenter", () => show(+h.getAttribute("data-i")));
+    h.addEventListener("pointerleave", () => { hot = null; document.getElementById("tip").classList.remove("on"); paint(); });
+  });
+}
+function paint(){ document.querySelectorAll("path[data-col]").forEach(p => p.setAttribute("opacity", hot == null || +p.getAttribute("data-col") === hot ? 1 : 0.35)); }
+function show(i){
+  hot = i; paint();
+  const tip = document.getElementById("tip");
+  tip.innerHTML = '<div class="tip-h">' + (i === QI ? "Real estate queue (Dec 2029 placeholder)" : "Dealing " + mLab(M[i])) + "</div>" +
+    SERIES.map((s, si) => SV[si][i] >= 500 ? '<div class="tip-r"><span class="sw" style="background:var(' + s.v + ')"></span><span class="k">' + s.name + "</span><b>" + full(SV[si][i]) + "</b></div>" : "").join("") +
+    '<div class="tip-r tip-t"><span class="k">Total, CAD</span><b>' + full(colTot[i]) + "</b></div>";
+  const card = tip.parentElement.getBoundingClientRect(), svg = document.getElementById("chart").getBoundingClientRect();
+  const cx = svg.left - card.left + (xLeft[i] + unit / 2) * svg.width / W;
+  tip.classList.add("on");
+  let tx = cx + 16; if (tx + tip.offsetWidth > card.width - 8) tx = cx - tip.offsetWidth - 16; if (tx < 8) tx = 8;
+  tip.style.left = tx + "px"; tip.style.top = "44px";
+}
+draw();
+new MutationObserver(draw).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
+window.matchMedia("(prefers-color-scheme:dark)").addEventListener("change", draw);
+
+/* table */
+document.getElementById("th").innerHTML = "<tr><th>Fund</th>" + M.map((k, i) => '<th class="' + (i === QI ? "q" : "") + '">' + (i === QI ? "Queue" : mShort(k)) + "</th>").join("") + "<th>Total</th></tr>";
+const sumArr = a => a.reduce((x, y) => x + y, 0);
+let tb = "";
+D.funds.forEach((f, fi) => {
+  const s = SERIES.find(s => s.fams.includes(f.family));
+  tb += '<tr class="fam"><td><button class="exp" type="button" id="exp-' + fi + '" aria-expanded="false" aria-controls="cls-' + fi + '"><span class="car" aria-hidden="true">&#9656;</span>' +
+    '<span class="sw" style="background:var(' + s.v + ')"></span>' + f.family.replace(" LP", "") + "</button></td>" +
+    f.cad.map((v, i) => '<td class="' + (i === QI ? "qc" : "") + '">' + fCell(v) + "</td>").join("") + '<td class="tot">' + fCell(sumArr(f.cad)) + "</td></tr>";
+  f.classes.forEach(c => {
+    tb += '<tr class="cls" data-f="' + fi + '" hidden><td title="' + c.id + '">' + c.id + " · " + c.label + "</td>" +
+      c.cad.map((v, i) => '<td class="' + (i === QI ? "qc" : "") + '" title="' + (c.ccy === "USD" ? "US" + full(c.native[i]) : "") + '">' + fCell(v) + "</td>").join("") + '<td class="tot">' + fCell(sumArr(c.cad)) + "</td></tr>";
+  });
+});
+document.getElementById("tb").innerHTML = tb;
+document.querySelectorAll("button.exp").forEach(b => b.addEventListener("click", () => {
+  const open = b.getAttribute("aria-expanded") !== "true", fi = b.id.split("-")[1];
+  b.setAttribute("aria-expanded", open);
+  document.querySelectorAll('tr.cls[data-f="' + fi + '"]').forEach(r => r.hidden = !open);
+}));
+document.getElementById("tf").innerHTML = "<tr><td>Total</td>" + colTot.map((v, i) => '<td class="' + (i === QI ? "qc" : "") + '">' + fCell(v) + "</td>").join("") + "<td>" + fCell(total) + "</td></tr>";
+
+document.getElementById("notes").innerHTML = __NOTES__;
+</script>

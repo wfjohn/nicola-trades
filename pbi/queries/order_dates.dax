@@ -1,0 +1,14 @@
+// Model: Pending Redemptions - Fund Impact (SLT, d3def5f5-4cd7-49cd-893a-f692d54d574d)
+// Per-order create date and real estate original dealing date. The table holds only the latest day,
+// so run this daily; pbi_order_dates accumulates by as_of.  ->  python -m pbi.load dates <result>
+EVALUATE
+SELECTCOLUMNS(
+  FILTER('Fabric_Pending Trades',
+    LEFT('Fabric_Pending Trades'[Tx Type], 4) = "Sell" && 'Fabric_Pending Trades'[source] = "Simcorp" &&
+    (LEFT('Fabric_Pending Trades'[fund_id], 4) = "NWM5" ||
+     LEFT('Fabric_Pending Trades'[fund_id], 5) IN {"NWM26", "NWM16", "NWM27", "NWM33"})),
+  "as_of", 'Fabric_Pending Trades'[as_of_date], "w", 'Fabric_Pending Trades'[wire_order],
+  "f", 'Fabric_Pending Trades'[fund_id], "t", 'Fabric_Pending Trades'[Tx Type],
+  "td", 'Fabric_Pending Trades'[Trade Date], "cd", 'Fabric_Pending Trades'[create_date],
+  "ro", 'Fabric_Pending Trades'[re_original_trade_date], "g", 'Fabric_Pending Trades'[gross_amt],
+  "at", 'Fabric_Pending Trades'[amount_type])

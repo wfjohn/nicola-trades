@@ -5,7 +5,7 @@
 # Fund groups (mirrors ClientFlows):
 #   Liquid:    Core Portfolio, Bond, Canadian Equity Income, U.S. Equity Income,
 #              International Leaders, Global Small Cap Equity
-#   Credit:    High Yield Bond, Balanced Mortgage, U.S. Mortgage
+#   Credit:    High Yield Bond, Canadian Mortgage, U.S. Mortgage
 #   Illiquid:  Private Equity LP, Private Debt, Canadian Real Estate LP,
 #              U.S. Real Estate LP, Diversified Real Estate, Value Add Real Estate LP,
 #              Global Infrastructure LP, Venture Capital LP, Diversified Private Assets
@@ -39,7 +39,12 @@ funds:
   NWM13600: "High Yield Bond"
   NWM13604: "High Yield Bond"
 
-  NWM160:   "Balanced Mortgage"
+  NWM160:   "Canadian Mortgage"     # was "Balanced Mortgage"; renamed Nicola Canadian Mortgage Fund
+  # other share classes keep their own series, named as the fund now is
+  NWM164:   "Nicola Canadian Mortgage Fund Class A CAD"
+  NWM168:   "Nicola Canadian Mortgage Fund Class I CAD"
+  NWM16600: "Nicola Canadian Mortgage Fund Class N-O CAD"
+  NWM16604: "Nicola Canadian Mortgage Fund Class N-A CAD"
 
   NWM290:   "U.S. Mortgage"
   NWM291:   "U.S. Mortgage"

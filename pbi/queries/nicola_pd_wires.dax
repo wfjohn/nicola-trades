@@ -1,0 +1,12 @@
+// Model: Beta SIMCORP Pending Transactions
+// The nine Nicola-family Private Debt requests excluded from forward PD views (user adjustment, Oct 2026).
+// Wire numbers carry a ".0" suffix in Power BI.  ->  python -m pbi.load nicola <result>
+EVALUATE
+SUMMARIZECOLUMNS(
+  'Pending Trades'[Date], 'Pending Trades'[Trade Date],
+  FILTER(ALL('Pending Trades'[Date]), 'Pending Trades'[Date] >= DATE(2026,9,24)),
+  TREATAS({"Simcorp"}, 'Pending Trades'[source]),
+  TREATAS({"20260925000531.0","20260925000542.0","20260925000543.0","20260925000544.0","20260925000545.0",
+           "20260925000546.0","20260925000547.0","20260925000548.0","20260925000549.0"}, 'Pending Trades'[Wire Order #]),
+  "n", COUNTROWS('Pending Trades'),
+  "g", SUMX('Pending Trades', ABS('Pending Trades'[Gross Amt])))

@@ -1,0 +1,17 @@
+// Model: Beta SIMCORP Pending Transactions (8e49fab3-87e6-418e-98c3-89516f992d58)
+// Daily Simcorp pending sells by fund family and dealing date, forward-dated only.
+// Sell-Swap is included: the raw Simcorp files call these "Sell". Switch-Out and Sell-Crystal are excluded.
+// Change the start date to load only new days.  ->  python -m pbi.load sells <result>
+EVALUATE
+FILTER(
+  SUMMARIZECOLUMNS(
+    'Pending Trades'[Date], 'Pending Trades'[Fund Name], 'Pending Trades'[Trade Date],
+    FILTER(ALL('Pending Trades'[Date]), 'Pending Trades'[Date] >= DATE(2026,9,24)),
+    TREATAS({"Simcorp"}, 'Pending Trades'[source]),
+    TREATAS({"Sell", "Sell-Swap"}, 'Pending Trades'[Tx Type]),
+    TREATAS({"Private Debt", "Private Equity LP", "U.S. Real Estate LP", "Canadian Real Estate LP",
+             "Global Infrastructure LP", "Canadian Mortgage", "Diversified Real Estate",
+             "Diversified Private Assets", "Venture Capital LP", "Value Add Real Estate LP"}, 'Pending Trades'[Fund Name]),
+    "n", COUNTROWS('Pending Trades'),
+    "g", SUMX('Pending Trades', ABS('Pending Trades'[Gross Amt]))),
+  'Pending Trades'[Trade Date] > 'Pending Trades'[Date])

@@ -31,6 +31,10 @@ Options:
 --all      Re-ingest every file even if already in the database
 ```
 
+### 1b. Power BI feed (Simcorp, from Sep 2026)
+
+Non-real-estate funds now come from Simcorp via Power BI, and real estate still comes from the legacy files. The queries, the loaders (`python -m pbi.load ...`) and the page builders are in [`pbi/`](pbi/README.md).
+
 ### 2. Compare two dates
 
 ```bash

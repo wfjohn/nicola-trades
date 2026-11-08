@@ -1,0 +1,12 @@
+// Model: Beta SIMCORP Pending Transactions
+// The nine Nicola-family Private Debt wires by share class for one snapshot (set the date), so the
+// adjustment can be applied per class and in each class's currency.  ->  python -m pbi.load nicola_class <result>
+EVALUATE
+SUMMARIZECOLUMNS(
+  'Pending Trades'[Date], 'Pending Trades'[Fund ID], 'Pending Trades'[Trade Date],
+  TREATAS({DATE(2026,11,6)}, 'Pending Trades'[Date]),
+  TREATAS({"Simcorp"}, 'Pending Trades'[source]),
+  TREATAS({"20260925000531.0","20260925000542.0","20260925000543.0","20260925000544.0","20260925000545.0",
+           "20260925000546.0","20260925000547.0","20260925000548.0","20260925000549.0"}, 'Pending Trades'[Wire Order #]),
+  "n", COUNTROWS('Pending Trades'),
+  "g", SUMX('Pending Trades', ABS('Pending Trades'[Gross Amt])))

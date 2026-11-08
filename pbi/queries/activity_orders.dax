@@ -1,0 +1,14 @@
+// Model: Beta SIMCORP Pending Transactions
+// Order-level non-real-estate Simcorp sells on two month-end snapshots, for the Activity page
+// (wire-level added/removed). Set the two dates and the trade-date floor (first day after the later month).
+EVALUATE
+SELECTCOLUMNS(
+  FILTER('Pending Trades',
+    ('Pending Trades'[Date] = DATE(2026,9,30) || 'Pending Trades'[Date] = DATE(2026,10,30)) &&
+    'Pending Trades'[source] = "Simcorp" && 'Pending Trades'[Tx Type] IN {"Sell", "Sell-Swap"} &&
+    'Pending Trades'[Trade Date] >= DATE(2026,11,1) &&
+    'Pending Trades'[Fund Name] IN {"Private Debt", "Private Equity LP", "Global Infrastructure LP", "Canadian Mortgage",
+                                     "Diversified Real Estate", "Diversified Private Assets", "Venture Capital LP", "Value Add Real Estate LP"}),
+  "d", 'Pending Trades'[Date], "w", 'Pending Trades'[Wire Order #], "f", 'Pending Trades'[Fund ID],
+  "fn", 'Pending Trades'[Fund Name], "td", 'Pending Trades'[Trade Date], "g", 'Pending Trades'[Gross Amt],
+  "acct", 'Pending Trades'[Dealer Acct #])
