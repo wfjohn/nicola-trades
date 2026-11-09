@@ -75,6 +75,19 @@ button.exp[aria-expanded="true"] .car{transform:rotate(90deg);}
 .note{font-size:11px;color:var(--ink-m);line-height:1.65;max-width:110ch;}
 .note b{color:var(--ink-2);font-weight:600;}
 .notes{display:flex;flex-direction:column;gap:7px;}
+.viewbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.vl{font-size:11px;font-weight:600;color:var(--ink-2);}
+.seg{display:inline-flex;background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:2px;gap:2px;flex-wrap:wrap;}
+.seg button{all:unset;cursor:pointer;font-size:12px;padding:5px 12px;border-radius:5px;color:var(--ink-2);}
+.seg button[aria-checked="true"]{background:var(--ink-1);color:var(--panel);font-weight:600;}
+.seg button:focus-visible{outline:2px solid var(--s1);outline-offset:1px;}
+thead tr.grp th{border-bottom:none;padding-bottom:0;color:var(--ink-2);}
+thead tr.grp th.g{border-bottom:1px solid var(--grid);text-align:center;}
+td.pct{color:var(--ink-2);}
+tbody tr.inv td{border-top:1px solid var(--grid);font-weight:600;color:var(--ink-1);}
+tbody tr.tgt td{color:var(--ink-2);}
+tbody tr.tgt td:first-child{padding-left:22px;}
+.fl{display:inline-flex;align-items:center;gap:7px;}
 </style>
 
 <div class="wrap">
@@ -84,17 +97,37 @@ button.exp[aria-expanded="true"] .car{transform:rotate(90deg);}
     <p class="sub" id="sub">—</p>
   </header>
 
+  <div class="viewbar" role="radiogroup" aria-label="Whose requests to show">
+    <span class="vl">Show</span>
+    <div class="seg" id="seg">
+      <button type="button" role="radio" aria-checked="true" data-v="all">All requests</button>
+      <button type="button" role="radio" aria-checked="false" data-v="clients">Clients only</button>
+      <button type="button" role="radio" aria-checked="false" data-v="fof">Fund-of-fund only</button>
+    </div>
+  </div>
+
   <div class="tiles">
     <div class="tile"><div class="tl">Total pending</div><div class="tv" id="t-all">—</div><div class="tn" id="t-all-n">—</div></div>
     <div class="tile"><div class="tl">Next six months</div><div class="tv" id="t-6m">—</div><div class="tn" id="t-6m-n">—</div></div>
     <div class="tile"><div class="tl">Scheduled beyond</div><div class="tv" id="t-later">—</div><div class="tn" id="t-later-n">—</div></div>
     <div class="tile"><div class="tl">Real estate queue</div><div class="tv" id="t-q">—</div><div class="tn" id="t-q-n">—</div></div>
+    <div class="tile"><div class="tl">Fund-of-fund</div><div class="tv" id="t-f">—</div><div class="tn" id="t-f-n">—</div></div>
   </div>
 
   <div class="card">
     <div class="legend" id="legend"></div>
     <div class="scroller"><svg id="chart" role="img" aria-label="Stacked bar chart of pending redemptions in CAD by dealing month and fund, with the December 2029 real estate queue drawn with a scale break"></svg></div>
     <div class="tip" id="tip"></div>
+  </div>
+
+  <div class="card">
+    <div class="tbl-head"><h2>Clients and fund-of-fund, by fund</h2><p>CAD millions. Fund-of-fund = requests placed by our own funds. Not affected by the Show switch.</p></div>
+    <div class="tbl"><table><thead id="sh"></thead><tbody id="sb"></tbody><tfoot id="sf"></tfoot></table></div>
+  </div>
+
+  <div class="card">
+    <div class="tbl-head"><h2>Fund-of-fund requests, by investing fund</h2><p>CAD millions, by dealing month.</p></div>
+    <div class="tbl"><table><thead id="ih"></thead><tbody id="ib"></tbody><tfoot id="if"></tfoot></table></div>
   </div>
 
   <div class="card">
@@ -113,7 +146,7 @@ const SERIES = [
   {name:"Private Debt", fams:["Private Debt"], v:"--s3"},
   {name:"Private Equity", fams:["Private Equity LP"], v:"--s4"},
   {name:"Global Infrastructure", fams:["Global Infrastructure LP"], v:"--s5"},
-  {name:"Canadian Mortgage", fams:["Canadian Mortgage"], v:"--s6"},
+  {name:"Mortgage funds", fams:["Canadian Mortgage", "U.S. Mortgage"], v:"--s6", note:"Canadian Mortgage, U.S. Mortgage"},
   {name:"Diversified Real Estate", fams:["Diversified Real Estate"], v:"--s7"},
   {name:"Other", fams:["Diversified Private Assets","Venture Capital LP","Value Add Real Estate LP"], v:"--s8",
    note:"Diversified Private Assets, Venture Capital, Value Add Real Estate"}
@@ -131,23 +164,40 @@ function el(t, a, txt){ const e = document.createElementNS(NS, t); for (const k 
 
 const M = D.months, QI = M.indexOf(D.queue_month);
 const famByName = Object.fromEntries(D.funds.map(f => [f.family, f]));
-const SV = SERIES.map(s => M.map((_, i) => s.fams.reduce((a, f) => a + (famByName[f] ? famByName[f].cad[i] : 0), 0)));
-const colTot = M.map((_, i) => SV.reduce((a, s) => a + Math.max(s[i], 0), 0));
-const total = colTot.reduce((a, b) => a + b, 0);
+let VIEW = "all";
+const VIEWLAB = {all: "All requests", clients: "Clients only", fof: "Fund-of-fund only"};
+const pick = (cad, fof, i) => VIEW === "all" ? cad[i] : VIEW === "fof" ? fof[i] : cad[i] - fof[i];
+let SV, colTot, total;
+function recompute(){
+  SV = SERIES.map(s => M.map((_, i) => s.fams.reduce((a, f) => a + (famByName[f] ? pick(famByName[f].cad, famByName[f].fof, i) : 0), 0)));
+  colTot = M.map((_, i) => SV.reduce((a, s) => a + Math.max(s[i], 0), 0));
+  total = colTot.reduce((a, b) => a + b, 0);
+}
+recompute();
+const fofAll = D.funds.reduce((a, f) => a + f.fof.reduce((x, y) => x + y, 0), 0);
+const cadAll = D.funds.reduce((a, f) => a + f.cad.reduce((x, y) => x + y, 0), 0);
+const fxTxt = String(+D.fx.toFixed(5));
 const sixEnd = (() => { const [y, m] = D.asof.split("-").map(Number); const t = m + 6; return (t > 12 ? y + 1 : y) + "-" + String(t > 12 ? t - 12 : t).padStart(2, "0"); })();
 const in6 = M.map(k => k <= sixEnd), isQ = M.map((_, i) => i === QI);
 const sum = f => colTot.reduce((a, v, i) => a + (f(i) ? v : 0), 0);
 
 document.getElementById("sub").textContent = "Redemption requests waiting to deal, by dealing month, as of " + human(D.asof) +
-  ". U.S. dollar share classes are converted at " + D.fx.toFixed(4) + " CAD per USD. December 2029 is the real estate queue: requests that have already dealt and are waiting to be funded.";
-document.getElementById("t-all").textContent = fM(total);
-document.getElementById("t-all-n").textContent = D.funds.reduce((a, f) => a + f.classes.length, 0) + " share classes, 10 funds";
-document.getElementById("t-6m").textContent = fM(sum(i => in6[i]));
-document.getElementById("t-6m-n").textContent = mLab(M[0]) + " to " + mLab(M.filter((k, i) => in6[i]).slice(-1)[0]);
-document.getElementById("t-later").textContent = fM(sum(i => !in6[i] && !isQ[i]));
-document.getElementById("t-later-n").textContent = "Venture Capital's schedule and one Global Infrastructure order, to Sep 2029";
-document.getElementById("t-q").textContent = fM(colTot[QI]);
-document.getElementById("t-q-n").textContent = "Canadian " + fM(SV[0][QI]) + " · U.S. " + fM(SV[1][QI]);
+  ". U.S. dollar share classes are converted at " + fxTxt + " CAD per USD. December 2029 is the real estate queue: requests that have already dealt and are waiting to be funded.";
+function tiles(){
+  const sfx = VIEW === "all" ? "" : " · " + VIEWLAB[VIEW].toLowerCase();
+  document.getElementById("t-all").textContent = fM(total);
+  document.getElementById("t-all-n").textContent = D.funds.reduce((a, f) => a + f.classes.length, 0) + " share classes, " + D.funds.length + " funds" + sfx;
+  document.getElementById("t-6m").textContent = fM(sum(i => in6[i]));
+  document.getElementById("t-6m-n").textContent = mLab(M[0]) + " to " + mLab(M.filter((k, i) => in6[i]).slice(-1)[0]);
+  const later = sum(i => !in6[i] && !isQ[i]);
+  document.getElementById("t-later").textContent = fM(later);
+  document.getElementById("t-later-n").textContent = later >= 500 ? "Venture Capital's schedule and one Global Infrastructure order, to Sep 2029" : "None";
+  document.getElementById("t-q").textContent = fM(colTot[QI]);
+  document.getElementById("t-q-n").textContent = "Canadian " + fM(SV[0][QI]) + " · U.S. " + fM(SV[1][QI]);
+}
+tiles();
+document.getElementById("t-f").textContent = fM(fofAll);
+document.getElementById("t-f-n").textContent = Math.round(fofAll / cadAll * 100) + "% of all requests · Core Portfolio and Diversified Real Estate Fund";
 
 /* legend */
 document.getElementById("legend").innerHTML = SERIES.map(s =>
@@ -158,7 +208,7 @@ const W = 1000, H = 400, ML = 62, MR = 14, MT = 34, MB = 56;
 const PW = W - ML - MR, PH = H - MT - MB;
 const STEPS = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
 const niceMax = v => { const p = Math.pow(10, Math.floor(Math.log10(v))); return STEPS.find(s => s >= v / p - 1e-9) * p; };
-const YMAX = niceMax(Math.max(...colTot.filter((_, i) => i !== QI)) * 1.08);
+let YMAX = 1;
 const GAPS = M.map((k, i) => i > 0 && (in6[i-1] !== in6[i] || isQ[i]) ? 1 : 0);   // visual gaps between groups
 const unit = PW / (M.length + GAPS.reduce((a, b) => a + b, 0) * 0.6);
 const xLeft = []; { let x = ML; M.forEach((_, i) => { if (GAPS[i]) x += unit * 0.6; xLeft.push(x); x += unit; }); }
@@ -168,6 +218,7 @@ let hot = null;
 
 function draw(){
   const svg = document.getElementById("chart");
+  YMAX = niceMax(Math.max(1e6, ...colTot.filter((_, i) => i !== QI)) * 1.08);
   svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.innerHTML = "";
   const cG = css("--grid"), cA = css("--axis"), cM = css("--ink-m"), c1 = css("--ink-1"), c2 = css("--ink-2"), cP = css("--panel"), cB = css("--band");
   /* group bands */
@@ -186,7 +237,7 @@ function draw(){
   M.forEach((k, i) => {
     const x = xLeft[i] + (unit - bw) / 2;
     let base = 0; const broken = i === QI;
-    const scale = broken ? (YMAX * 0.92) / colTot[i] : 1;          // queue bar compressed to fit, with a break mark
+    const scale = broken && colTot[i] > YMAX * 0.92 ? (YMAX * 0.92) / colTot[i] : 1;          // queue bar compressed to fit, with a break mark
     const segs = [];
     SERIES.forEach((s, si) => { const v = Math.max(SV[si][i], 0); if (v > 0) segs.push([si, v]); });
     segs.forEach(([si, v], j) => {
@@ -197,12 +248,12 @@ function draw(){
       svg.appendChild(el("path", {d, fill: css(SERIES[si].v), "data-col": i, opacity: hot == null || hot === i ? 1 : 0.35}));
       base += v;
     });
-    if (broken){   /* scale-break mark across the bar */
+    if (broken && scale < 1){   /* scale-break mark across the bar */
       const yb = yOf(YMAX * 0.55);
       svg.appendChild(el("path", {d: "M" + (x - 4) + "," + (yb + 4) + " L" + (x + bw / 2) + "," + (yb - 3) + " L" + (x + bw + 4) + "," + (yb + 4) + " L" + (x + bw + 4) + "," + (yb + 10) + " L" + (x + bw / 2) + "," + (yb + 3) + " L" + (x - 4) + "," + (yb + 10) + " Z", fill: cP}));
     }
     const top = yOf(colTot[i] * scale);
-    if (colTot[i] >= 5e6 || broken)
+    if (colTot[i] >= 5e6 || (broken && colTot[i] >= 500))
       svg.appendChild(el("text", {x: x + bw / 2, y: top - 6, "text-anchor": "middle", fill: c1, "font-size": 11, "font-weight": 700, "font-family": "var(--mono)"}, fM(colTot[i])));
     const lab = el("text", {x: x + bw / 2, y: MT + PH + 16, "text-anchor": "middle", fill: c2, "font-size": 10.5, "font-family": "var(--sans)"}, MON[+k.slice(5) - 1]);
     svg.appendChild(lab);
@@ -219,7 +270,7 @@ function paint(){ document.querySelectorAll("path[data-col]").forEach(p => p.set
 function show(i){
   hot = i; paint();
   const tip = document.getElementById("tip");
-  tip.innerHTML = '<div class="tip-h">' + (i === QI ? "Real estate queue (Dec 2029 placeholder)" : "Dealing " + mLab(M[i])) + "</div>" +
+  tip.innerHTML = '<div class="tip-h">' + (i === QI ? "Real estate queue (Dec 2029 placeholder)" : "Dealing " + mLab(M[i])) + (VIEW === "all" ? "" : " · " + VIEWLAB[VIEW]) + "</div>" +
     SERIES.map((s, si) => SV[si][i] >= 500 ? '<div class="tip-r"><span class="sw" style="background:var(' + s.v + ')"></span><span class="k">' + s.name + "</span><b>" + full(SV[si][i]) + "</b></div>" : "").join("") +
     '<div class="tip-r tip-t"><span class="k">Total, CAD</span><b>' + full(colTot[i]) + "</b></div>";
   const card = tip.parentElement.getBoundingClientRect(), svg = document.getElementById("chart").getBoundingClientRect();
@@ -235,24 +286,79 @@ window.matchMedia("(prefers-color-scheme:dark)").addEventListener("change", draw
 /* table */
 document.getElementById("th").innerHTML = "<tr><th>Fund</th>" + M.map((k, i) => '<th class="' + (i === QI ? "q" : "") + '">' + (i === QI ? "Queue" : mShort(k)) + "</th>").join("") + "<th>Total</th></tr>";
 const sumArr = a => a.reduce((x, y) => x + y, 0);
+const vArr = (cad, fof) => M.map((_, i) => pick(cad, fof, i));
+function table(){
+const openSet = new Set([...document.querySelectorAll('button.exp[aria-expanded="true"]')].map(b => b.id));
 let tb = "";
 D.funds.forEach((f, fi) => {
+  const fv = vArr(f.cad, f.fof);
+  if (sumArr(fv.map(Math.abs)) < 500) return;
   const s = SERIES.find(s => s.fams.includes(f.family));
   tb += '<tr class="fam"><td><button class="exp" type="button" id="exp-' + fi + '" aria-expanded="false" aria-controls="cls-' + fi + '"><span class="car" aria-hidden="true">&#9656;</span>' +
     '<span class="sw" style="background:var(' + s.v + ')"></span>' + f.family.replace(" LP", "") + "</button></td>" +
-    f.cad.map((v, i) => '<td class="' + (i === QI ? "qc" : "") + '">' + fCell(v) + "</td>").join("") + '<td class="tot">' + fCell(sumArr(f.cad)) + "</td></tr>";
+    fv.map((v, i) => '<td class="' + (i === QI ? "qc" : "") + '">' + fCell(v) + "</td>").join("") + '<td class="tot">' + fCell(sumArr(fv)) + "</td></tr>";
   f.classes.forEach(c => {
+    const cv = vArr(c.cad, c.fof);
+    if (sumArr(cv.map(Math.abs)) < 500) return;
     tb += '<tr class="cls" data-f="' + fi + '" hidden><td title="' + c.id + '">' + c.id + " · " + c.label + "</td>" +
-      c.cad.map((v, i) => '<td class="' + (i === QI ? "qc" : "") + '" title="' + (c.ccy === "USD" ? "US" + full(c.native[i]) : "") + '">' + fCell(v) + "</td>").join("") + '<td class="tot">' + fCell(sumArr(c.cad)) + "</td></tr>";
+      cv.map((v, i) => '<td class="' + (i === QI ? "qc" : "") + '" title="' + (c.ccy === "USD" && VIEW === "all" ? "US" + full(c.native[i]) : "") + '">' + fCell(v) + "</td>").join("") + '<td class="tot">' + fCell(sumArr(cv)) + "</td></tr>";
   });
 });
 document.getElementById("tb").innerHTML = tb;
-document.querySelectorAll("button.exp").forEach(b => b.addEventListener("click", () => {
+document.querySelectorAll("button.exp").forEach(b => {
+  if (openSet.has(b.id)){ b.setAttribute("aria-expanded", "true"); document.querySelectorAll('tr.cls[data-f="' + b.id.split("-")[1] + '"]').forEach(r => r.hidden = false); }
+  b.addEventListener("click", () => {
   const open = b.getAttribute("aria-expanded") !== "true", fi = b.id.split("-")[1];
   b.setAttribute("aria-expanded", open);
   document.querySelectorAll('tr.cls[data-f="' + fi + '"]').forEach(r => r.hidden = !open);
-}));
+});});
 document.getElementById("tf").innerHTML = "<tr><td>Total</td>" + colTot.map((v, i) => '<td class="' + (i === QI ? "qc" : "") + '">' + fCell(v) + "</td>").join("") + "<td>" + fCell(total) + "</td></tr>";
+}
+table();
+
+/* view switch */
+document.querySelectorAll("#seg button").forEach(b => b.addEventListener("click", () => {
+  VIEW = b.dataset.v;
+  document.querySelectorAll("#seg button").forEach(x => x.setAttribute("aria-checked", x === b));
+  recompute(); tiles(); draw(); table();
+}));
+
+/* clients vs fund-of-fund summary (independent of the view switch) */
+{
+  const sw = f => { const s = SERIES.find(s => s.fams.includes(f.family)); return '<span class="sw" style="background:var(' + s.v + ')"></span>'; };
+  const lab = f => '<span class="fl">' + sw(f) + f.family.replace(" LP", "") + "</span>";
+  const isRE = f => f.family === "Canadian Real Estate LP" || f.family === "U.S. Real Estate LP";   // only real estate has a queue; VC deals in Dec 2029 on schedule
+  const parts = f => { const t = sumArr(f.cad), ft = sumArr(f.fof), q = QI >= 0 && isRE(f) ? f.cad[QI] : 0, fq = QI >= 0 && isRE(f) ? f.fof[QI] : 0;
+    return [t - q - (ft - fq), ft - fq, q - fq, fq, t - ft, ft, t]; };
+  const qcls = i => (i === 2 || i === 3) ? "qc" : "";
+  document.getElementById("sh").innerHTML = '<tr class="grp"><th></th><th class="g" colspan="2">Scheduled months</th><th class="g" colspan="2">Real estate queue</th><th class="g" colspan="3">Total</th><th></th></tr>' +
+    "<tr><th>Fund</th><th>Clients</th><th>Fund-of-fund</th><th>Clients</th><th>Fund-of-fund</th><th>Clients</th><th>Fund-of-fund</th><th>All</th><th>FoF share</th></tr>";
+  const T = [0, 0, 0, 0, 0, 0, 0];
+  document.getElementById("sb").innerHTML = D.funds.map(f => { const p = parts(f); p.forEach((v, i) => T[i] += v);
+    return '<tr class="fam"><td>' + lab(f) + "</td>" +
+      p.map((v, i) => '<td class="' + (i === 6 ? "tot " : "") + qcls(i) + '">' + fCell(v) + "</td>").join("") +
+      '<td class="pct">' + (p[5] >= 500 ? Math.round(p[5] / p[6] * 100) + "%" : "—") + "</td></tr>"; }).join("");
+  document.getElementById("sf").innerHTML = "<tr><td>Total</td>" + T.map((v, i) => '<td class="' + qcls(i) + '">' + fCell(v) + "</td>").join("") + "<td>" + Math.round(T[5] / T[6] * 100) + "%</td></tr>";
+
+  /* by investing fund */
+  const inv = {};
+  D.funds.forEach(f => Object.entries(f.fof_by).forEach(([k, a]) => { (inv[k] = inv[k] || []).push([f, a]); }));
+  const cols = M.map((_, i) => i).filter(i => Object.values(inv).some(l => l.some(([, a]) => Math.abs(a[i]) >= 500)));
+  const qc = j => cols[j] === QI ? "qc" : "";
+  document.getElementById("ih").innerHTML = "<tr><th>Investing fund / redeeming from</th>" + cols.map(i => '<th class="' + (i === QI ? "q" : "") + '">' + (i === QI ? "Queue" : mShort(M[i])) + "</th>").join("") + "<th>Total</th></tr>";
+  let ib = ""; const IT = cols.map(() => 0);
+  const invTot = l => l.reduce((a, [, arr]) => a + sumArr(arr), 0);
+  Object.entries(inv).sort((a, b) => invTot(b[1]) - invTot(a[1])).forEach(([k, list]) => {
+    const tot = cols.map(i => list.reduce((a, [, arr]) => a + arr[i], 0));
+    tot.forEach((v, j) => IT[j] += v);
+    ib += '<tr class="inv"><td>' + k + "</td>" + tot.map((v, j) => '<td class="' + qc(j) + '">' + fCell(v) + "</td>").join("") + '<td class="tot">' + fCell(invTot(list)) + "</td></tr>";
+    list.sort((a, b) => sumArr(b[1]) - sumArr(a[1])).forEach(([f, arr]) => {
+      ib += '<tr class="tgt"><td>' + lab(f) + "</td>" + cols.map((i, j) => '<td class="' + qc(j) + '">' + fCell(arr[i]) + "</td>").join("") + '<td class="tot">' + fCell(sumArr(arr)) + "</td></tr>";
+    });
+  });
+  document.getElementById("ib").innerHTML = ib;
+  document.getElementById("if").innerHTML = "<tr><td>Total</td>" + IT.map((v, j) => '<td class="' + qc(j) + '">' + fCell(v) + "</td>").join("") + "<td>" + fCell(sumArr(IT)) + "</td></tr>";
+}
 
 document.getElementById("notes").innerHTML = __NOTES__;
 </script>

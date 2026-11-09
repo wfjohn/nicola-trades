@@ -25,6 +25,7 @@ Before Sep 22 2026, Power BI's `'Pending Trades'` also holds the legacy history,
   - its dealing month is the create month + 6. The dealing date is `re_original_trade_date` when the trade date is the 2029-12-31 placeholder, otherwise the trade date;
   - the extract has no order in the same class with the same dealing date and an amount within 2%.
 - **Real estate queue:** Simcorp parks the real estate queue at 2029-12-31. Every parked order checked so far has a past origin date.
+- **Fund-of-fund:** requests placed by our own funds. In Simcorp, their dealer accounts contain `AVS` (`250AVS_*` and `254AVS_*` are Core Portfolio; `270AVS` is the Diversified Real Estate Fund). In the extract, the dealer account starts with `5` and the investor is "NICOLA … FUND" (`504250` is Core Portfolio; `516270` is the Diversified Real Estate Fund). See `data.fof_by_class`.
 - **Currency:** `data.currency(fund_id)` gives each share class's currency.
   - N-series classes (`NWMxx6yz`): an odd last digit is USD.
   - Otherwise the first three digits decide (`USD_BASES`).
@@ -40,6 +41,7 @@ Before Sep 22 2026, Power BI's `'Pending Trades'` also holds the legacy history,
    python -m pbi.load nicola_class <result>   # nicola_pd_wires_by_class.dax
    python -m pbi.load dates        <result>   # order_dates.dax  (run daily; history builds up)
    python -m pbi.load byclass      <result>   # sells_by_class_latest.dax
+   python -m pbi.load fof          <result>   # fof_sells_latest.dax (same date as byclass)
    ```
    A result can be the saved connector output (JSON) or a plain `.csv` file.
 3. Build the pages:

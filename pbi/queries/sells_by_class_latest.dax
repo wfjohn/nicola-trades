@@ -9,7 +9,7 @@ SUMMARIZECOLUMNS(
   TREATAS({"Sell", "Sell-Swap"}, 'Pending Trades'[Tx Type]),
   FILTER(ALL('Pending Trades'[Trade Date]), 'Pending Trades'[Trade Date] > DATE(2026,11,6)),
   TREATAS({"Private Debt", "Private Equity LP", "U.S. Real Estate LP", "Canadian Real Estate LP",
-           "Global Infrastructure LP", "Canadian Mortgage", "Diversified Real Estate",
+           "Global Infrastructure LP", "Canadian Mortgage", "U.S. Mortgage", "Diversified Real Estate",
            "Diversified Private Assets", "Venture Capital LP", "Value Add Real Estate LP"}, 'Pending Trades'[Fund Name]),
   "n", COUNTROWS('Pending Trades'),
   "g", SUMX('Pending Trades', ABS('Pending Trades'[Gross Amt])))

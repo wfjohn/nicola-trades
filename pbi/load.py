@@ -5,6 +5,7 @@
     python -m pbi.load nicola_class <result>   # queries/nicola_pd_wires_by_class.dax
     python -m pbi.load dates    <result.txt>   # queries/order_dates.dax (accumulates by as_of)
     python -m pbi.load byclass  <result.txt>   # queries/sells_by_class_latest.dax
+    python -m pbi.load fof      <result.txt>   # queries/fof_sells_latest.dax
 
 Tables (created if missing):
     pbi_simcorp_sells   snapshot_date, fund_family, trade_date, n, gross       Sell + Sell-Swap, Simcorp, illiquid families
@@ -12,6 +13,7 @@ Tables (created if missing):
     pbi_adj_nicola_pd_class  snapshot_date, fund_id, trade_date, gross  same wires by share class
     pbi_order_dates     as_of, wire_order, fund_id, tx_type, trade_date, create_date, re_original_trade_date, gross, amount_type
     pbi_sells_by_class  snapshot_date, fund_family, fund_id, trade_date, n, gross
+    pbi_fof_sells       snapshot_date, wire_order, fund_family, fund_id, dealer_acct, trade_date, gross   fund-of-fund orders
 """
 import sqlite3
 import sys
@@ -30,6 +32,8 @@ SCHEMA = {
                        "re_original_trade_date TEXT, gross REAL, amount_type TEXT, PRIMARY KEY (as_of, wire_order, fund_id, tx_type)",
     'pbi_sells_by_class': "snapshot_date TEXT, fund_family TEXT, fund_id TEXT, trade_date TEXT, n INTEGER, gross REAL, "
                           "PRIMARY KEY (snapshot_date, fund_id, trade_date)",
+    'pbi_fof_sells': "snapshot_date TEXT, wire_order TEXT, fund_family TEXT, fund_id TEXT, dealer_acct TEXT, trade_date TEXT, gross REAL, "
+                     "PRIMARY KEY (snapshot_date, wire_order, fund_id)",
 }
 
 
@@ -63,11 +67,17 @@ def load(kind, path):
         recs = [(iso(r['as_of']), wire(r['w']), r['f'], r['t'], iso(r['td']), _opt(r['cd']), _opt(r['ro']), abs(num(r['g'])), r['at'])
                 for r in data]
         conn.executemany("INSERT OR REPLACE INTO pbi_order_dates VALUES (?,?,?,?,?,?,?,?,?)", recs)
+    elif kind == 'fof':
+        recs = [(iso(r['d']), wire(r['w']), r['fn'], r['f'], r['acct'], iso(r['td']), abs(num(r['g']))) for r in data]
+        dates = sorted({r[0] for r in recs})
+        conn.executemany("DELETE FROM pbi_fof_sells WHERE snapshot_date=?", [(d,) for d in dates])
+        conn.executemany("INSERT INTO pbi_fof_sells VALUES (?,?,?,?,?,?,?)", recs)
     elif kind == 'byclass':
         recs = [(iso(r['Pending Trades Date']), r['Pending Trades Fund Name'], r['Pending Trades Fund ID'], iso(r['Pending Trades Trade Date']),
                  int(num(r['n'])), num(r['g'])) for r in data]
-        dates = sorted({r[0] for r in recs})
-        conn.executemany("DELETE FROM pbi_sells_by_class WHERE snapshot_date=?", [(d,) for d in dates])
+        # replace only the (date, fund) pairs in this result, so one fund can be loaded on its own
+        pairs = sorted({(r[0], r[1]) for r in recs})
+        conn.executemany("DELETE FROM pbi_sells_by_class WHERE snapshot_date=? AND fund_family=?", pairs)
         conn.executemany("INSERT INTO pbi_sells_by_class VALUES (?,?,?,?,?,?)", recs)
     else:
         raise SystemExit(f'unknown kind {kind!r}')

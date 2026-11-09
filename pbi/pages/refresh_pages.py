@@ -112,7 +112,7 @@ for f in D['funds']:
 for d in dates:
     if d in NIC and d < NIC[d][0] <= horizon(d): adj[d] = round(NIC[d][1])
 D['dates'] = dates; D['adj'] = adj
-beyond = {f: round(nonre(END, f, lo=horizon(END), hi='2030-12-31', adjust=False)) for f in FAMS if f not in RE and f != 'Value Add Real Estate LP'}
+beyond = {f: round(nonre(END, f, lo=horizon(END), hi='2030-12-31', adjust=False)) for f in FAMS if f not in RE and f not in ('Value Add Real Estate LP', 'U.S. Mortgage')}
 beyond.update({f: round(re_fwd(END, f) - re_fwd(END, f, hi=horizon(END))) for f in RE})
 D['beyond'] = {k: v for k, v in beyond.items() if v > 0}
 s = s.replace(m.group(0), 'const D = ' + json.dumps(D, separators=(',', ':')) + ';\n')

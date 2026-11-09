@@ -1,4 +1,5 @@
 """Pending redemptions by dealing month, in CAD, per fund family and share class, for one snapshot.
+Each class and family also carries `fof`: the part placed by our own funds (fund-of-fund, see data.fof_by_class).
 
     python -m pbi.pending_by_month 2026-11-06 1.40117 out.json
 
@@ -11,7 +12,7 @@ import re
 import sys
 from collections import defaultdict
 
-from .data import conn, pending_by_class, currency, FAMS, QUEUE
+from .data import conn, pending_by_class, fof_by_class, currency, FAMS, QUEUE
 
 
 def class_label(fid):
@@ -35,6 +36,13 @@ def build(d, fx):
         r = rows[(fam, fid)]
         r['native'][mon] += g
         r['cad'][mon] += g * (fx if currency(fid) == 'USD' else 1.0)
+    F = fof_by_class(d)
+    fof = defaultdict(lambda: defaultdict(float))            # (fam, fid) -> month -> CAD
+    by_inv = defaultdict(lambda: defaultdict(float))         # (fam, investor) -> month -> CAD
+    for (fam, fid, mon, inv), g in F.items():
+        c = g * (fx if currency(fid) == 'USD' else 1.0)
+        fof[(fam, fid)][mon] += c
+        by_inv[(fam, inv)][mon] += c
     months = sorted({m for r in rows.values() for m in r['cad']})
     out = []
     for fam in FAMS:
@@ -43,9 +51,12 @@ def build(d, fx):
             if f != fam: continue
             classes.append({'id': fid, 'label': class_label(fid), 'ccy': currency(fid),
                             'cad': [round(r['cad'].get(m, 0)) for m in months],
-                            'native': [round(r['native'].get(m, 0)) for m in months]})
+                            'native': [round(r['native'].get(m, 0)) for m in months],
+                            'fof': [round(fof[(f, fid)].get(m, 0)) for m in months]})
         if classes:
-            out.append({'family': fam, 'classes': classes, 'cad': [sum(c['cad'][i] for c in classes) for i in range(len(months))]})
+            invs = {inv: [round(v.get(m, 0)) for m in months] for (f, inv), v in sorted(by_inv.items()) if f == fam}
+            out.append({'family': fam, 'classes': classes, 'cad': [sum(c['cad'][i] for c in classes) for i in range(len(months))],
+                        'fof': [sum(c['fof'][i] for c in classes) for i in range(len(months))], 'fof_by': invs})
     return {'asof': d, 'fx': fx, 'queue_month': QUEUE[:7], 'months': months, 'funds': out}
 
 

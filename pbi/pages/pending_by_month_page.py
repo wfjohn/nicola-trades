@@ -18,14 +18,19 @@ TEMPLATE = Path(__file__).resolve().parents[1] / 'templates' / 'pending_by_month
 def notes(D):
     sup_n, sup_g = len(SUP), sum(s['g'] for s in SUP) / 1e6
     return [
-        "<b>Sources:</b> Private Debt, Private Equity, Global Infrastructure, Canadian Mortgage, Diversified Real Estate, Diversified Private Assets, "
+        "<b>Sources:</b> Private Debt, Private Equity, Global Infrastructure, Canadian Mortgage, U.S. Mortgage, Diversified Real Estate, Diversified Private Assets, "
         "Venture Capital and Value Add Real Estate are read from Simcorp (Beta SIMCORP Pending Transactions model in Power BI). Canadian and U.S. Real Estate "
         f"dealing months come from the pending-trades extract, plus {sup_n} newer requests (${sup_g:.1f}M in fund currency) that appear only in Simcorp. "
         "Sells and switches out to another fund are counted; switches between share classes of the same fund are not.",
         "<b>Real estate queue:</b> Simcorp holds real estate redemptions that have already dealt and are waiting to be paid under a placeholder dealing date "
         "of Dec&nbsp;31, 2029. The queue bar is drawn with a scale break; its height is not to scale.",
-        f"<b>Currency:</b> amounts in U.S. dollar share classes are converted at {D['fx']:.5f} CAD per USD (Power BI FX Rates). "
-        "Hover a share-class cell to see the U.S. dollar amount.",
+        f"<b>Currency:</b> amounts in U.S. dollar share classes are converted at {D['fx']:g} CAD per USD. "
+        "Hover a share-class cell to see the U.S. dollar amount (All requests view).",
+        "<b>Fund-of-fund:</b> requests placed by our own funds rather than clients. Core Portfolio redeems from Private Debt, Private Equity, "
+        "Global Infrastructure, U.S. Mortgage and both real estate funds; the Diversified Real Estate Fund redeems from Canadian and U.S. Real Estate. "
+        "They are identified by the funds' own dealer accounts (Simcorp 250AVS, 254AVS and 270AVS; extract accounts 504250 and 516270). "
+        "Diversified Real Estate Fund's redemptions from the two real estate funds partly fund its own client redemptions, "
+        "so adding both counts some dollars twice across the fund family.",
         "<b>Adjustment:</b> Private Debt excludes the Nicola family requests (pbi_adj_nicola_pd_class). The manual overrides on the "
         "Six-Month Redemptions by Fund page are not applied here.",
         "<b>Months shown:</b> only months with pending redemptions.",

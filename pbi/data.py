@@ -17,7 +17,9 @@ conn = sqlite3.connect(DB)
 CUT = '2026-09-24'
 RE = ('Canadian Real Estate LP', 'U.S. Real Estate LP')
 FAMS = ['Private Debt', 'Private Equity LP', 'U.S. Real Estate LP', 'Canadian Real Estate LP', 'Global Infrastructure LP',
-        'Canadian Mortgage', 'Diversified Real Estate', 'Diversified Private Assets', 'Venture Capital LP', 'Value Add Real Estate LP']
+        'Canadian Mortgage', 'U.S. Mortgage', 'Diversified Real Estate', 'Diversified Private Assets', 'Venture Capital LP',
+        'Value Add Real Estate LP']
+# U.S. Mortgage was added to the pending-by-month page on 2026-11-08. The older pages (refresh_pages) leave it out.
 W = {'Canadian Real Estate LP': "(canonical_fund='Canadian Real Estate LP' OR canonical_fund LIKE 'Nicola Canadian Real Estate%')",
      'U.S. Real Estate LP': "(canonical_fund='U.S. Real Estate LP' OR canonical_fund LIKE 'Nicola U.S. Real Estate%')"}
 QUEUE = '2029-12-31'   # Simcorp parks the real estate queue at this placeholder dealing date
@@ -132,4 +134,29 @@ def pending_by_class(d):
             out[(f, fid, td[:7])] += g
     for s in SUP:
         if s['cd'] <= d < s['o']: out[(s['f'], s['fid'], s['o'][:7])] += s['g']
+    return out
+
+
+# ---- Fund-of-fund redemptions: orders placed by our own funds (e.g. Core Portfolio redeeming from Private Debt)
+def investor_name(acct=None, name=None):
+    """Investing fund from a Simcorp dealer account (250AVS_U -> Core Portfolio) or a legacy investor name."""
+    if acct:
+        return {'250': 'Core Portfolio', '254': 'Core Portfolio', '270': 'Diversified Real Estate Fund'}.get(acct[:3], 'Fund account ' + acct)
+    n = name.upper().removeprefix('NICOLA ').removesuffix(' FUND').title()
+    return {'Core Portfolio': 'Core Portfolio', 'Diversified Real Estate': 'Diversified Real Estate Fund'}.get(n, n)
+
+
+def fof_by_class(d):
+    """{(family, fund_id, 'YYYY-MM', investor): gross in class currency} at snapshot d. Same sources as pending_by_class:
+    Simcorp (pbi_fof_sells, accounts containing 'AVS') for non-RE and the RE queue; for RE dealing months, the legacy
+    extract's fund accounts (dealer account starting '5', investor 'NICOLA ... FUND')."""
+    out = defaultdict(float)
+    for f, fid, acct, td, g in conn.execute("SELECT fund_family, fund_id, dealer_acct, trade_date, gross FROM pbi_fof_sells WHERE snapshot_date=?", (d,)):
+        if f not in FAMS or (f in RE and td != QUEUE): continue
+        out[(f, fid, td[:7], investor_name(acct=acct))] += g
+    for f in RE:
+        q = (f"SELECT fund_id, trade_date, ABS(gross_amt), investor_name FROM trades WHERE snapshot_id=? AND tx_type='Sell' AND trade_date>? "
+             f"AND dealer_acct_num LIKE '5%' AND investor_name LIKE 'NICOLA % FUND' AND {W[f]}")
+        for fid, td, g, nm in conn.execute(q, (LEG[d], d)):
+            out[(f, fid, td[:7], investor_name(name=nm))] += g
     return out

@@ -1,0 +1,13 @@
+// Model: Beta SIMCORP Pending Transactions
+// Fund-of-fund sells for one snapshot (set the date): orders placed by our own funds' accounts,
+// whose Dealer Acct # contains "AVS" (250AVS_* / 254AVS_* = Core Portfolio, 270AVS = Diversified Real Estate Fund).
+// Client accounts start with "6".  ->  python -m pbi.load fof <result>
+EVALUATE
+SELECTCOLUMNS(
+  FILTER('Pending Trades',
+    'Pending Trades'[Date] = DATE(2026,11,6) && 'Pending Trades'[source] = "Simcorp" &&
+    'Pending Trades'[Tx Type] IN {"Sell", "Sell-Swap"} &&
+    'Pending Trades'[Trade Date] > DATE(2026,11,6) && 'Pending Trades'[Trade Date] <= DATE(2030,12,31) &&
+    CONTAINSSTRING('Pending Trades'[Dealer Acct #], "AVS")),
+  "d", 'Pending Trades'[Date], "w", 'Pending Trades'[Wire Order #], "fn", 'Pending Trades'[Fund Name], "f", 'Pending Trades'[Fund ID],
+  "acct", 'Pending Trades'[Dealer Acct #], "td", 'Pending Trades'[Trade Date], "tx", 'Pending Trades'[Tx Type], "g", 'Pending Trades'[Gross Amt])
