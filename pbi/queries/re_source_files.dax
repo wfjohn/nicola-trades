@@ -1,0 +1,13 @@
+// Model: Beta SIMCORP Pending Transactions
+// Real estate sell totals per day, to check python -m pbi.re_files against (n and g must match to the cent).
+// sourcefileTime is shown for reference only; it does not match the file names.
+EVALUATE
+SUMMARIZECOLUMNS(
+  'Pending Trades'[Date], 'Pending Trades'[sourcefileTime], 'Pending Trades'[Fund Name],
+  FILTER(ALL('Pending Trades'[Date]), 'Pending Trades'[Date] >= DATE(2026,11,9)),
+  TREATAS({"Simcorp"}, 'Pending Trades'[source]),
+  TREATAS({"Sell", "Sell-Swap"}, 'Pending Trades'[Tx Type]),
+  TREATAS({"U.S. Real Estate LP", "Canadian Real Estate LP"}, 'Pending Trades'[Fund Name]),
+  "n", COUNTROWS('Pending Trades'),
+  "g", SUMX('Pending Trades', ABS('Pending Trades'[Gross Amt])),
+  "gf", SUMX(FILTER('Pending Trades', 'Pending Trades'[Trade Date] > 'Pending Trades'[Date]), ABS('Pending Trades'[Gross Amt])))

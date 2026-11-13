@@ -2,8 +2,12 @@
 
 Source rules (agreed with the CIO, Oct-Nov 2026):
   * Non-real-estate funds: Simcorp from Sep 24 2026, read from Power BI (pbi_simcorp_sells). Legacy extract before.
-  * Canadian + U.S. Real Estate LP: the legacy "Nwm Pending Trades" extract (trades table) for all dates,
-    plus Simcorp-only new requests (SUP) identified from Simcorp create dates (pbi_order_dates).
+  * Canadian + U.S. Real Estate LP:
+      - from RE_CUT (Nov 9 2026, user decision 2026-11-13): Simcorp, request by request (pbi_re_sells, loaded by
+        pbi.re_files from the same file Power BI holds). Parked requests (trade date 2029-12-31) go to their real
+        dealing month from Original trade-date; those whose dealing date has passed are the queue.
+      - before RE_CUT: the legacy "Nwm Pending Trades" extract (trades table), plus Simcorp-only new requests (SUP)
+        identified from Simcorp create dates (pbi_order_dates), plus Simcorp's parked queue.
   * The nine Nicola-family Private Debt requests (pbi_adj_nicola_pd) are removed from forward PD views.
 """
 import calendar
@@ -23,6 +27,7 @@ FAMS = ['Private Debt', 'Private Equity LP', 'U.S. Real Estate LP', 'Canadian Re
 W = {'Canadian Real Estate LP': "(canonical_fund='Canadian Real Estate LP' OR canonical_fund LIKE 'Nicola Canadian Real Estate%')",
      'U.S. Real Estate LP': "(canonical_fund='U.S. Real Estate LP' OR canonical_fund LIKE 'Nicola U.S. Real Estate%')"}
 QUEUE = '2029-12-31'   # Simcorp parks the real estate queue at this placeholder dealing date
+RE_CUT = '2026-11-09'  # real estate switches from the legacy extract to Simcorp on this snapshot date
 
 # Share-class currency: first three digits of the code after "NWM" (Dim Fund in the Beta SIMCORP model).
 USD_BASES = {'131', '139', '171', '249', '231', '241', '261', '269', '281', '291', '301', '331', '341',
@@ -104,9 +109,33 @@ for w, fid, td, cd, ro, g in conn.execute("SELECT wire_order, fund_id, trade_dat
     (SUP_DUP if any(abs(x - g) <= 0.02 * g for x in _near.get((fid, deal), [])) else SUP).append(rec)
 
 
+RE_SC = {d for (d,) in conn.execute("SELECT DISTINCT snapshot_date FROM pbi_re_sells")}     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='pbi_re_sells'").fetchone() else set()
+
+
+def re_rows(d, f=None):
+    """Simcorp real estate sells at d (d >= RE_CUT): (family, fund_id, dealer_acct, dealing date or QUEUE, gross).
+    A parked request whose dealing date has passed (or is blank) is in the queue and keeps the QUEUE date."""
+    if d not in RE_SC:
+        raise SystemExit(f'pbi_re_sells has no rows for {d}: run python -m pbi.re_files {d}')
+    out = []
+    for fam, fid, acct, td, deal, g in conn.execute("SELECT fund_family, fund_id, dealer_acct, trade_date, deal_date, gross "
+                                                     "FROM pbi_re_sells WHERE snapshot_date=? AND trade_date>?", (d, d)):
+        if f and fam != f: continue
+        if td == QUEUE:
+            td = deal if deal and deal > d else QUEUE
+        out.append((fam, fid, acct, td, g))
+    return out
+
+
 def re_fwd(d, f, lo=None, hi=None, exact=None):
-    """Real estate forward sells at d: legacy extract + Simcorp-only requests created by d."""
+    """Real estate forward sells at d, excluding the queue. From RE_CUT: Simcorp. Before: legacy extract + Simcorp-only
+    requests created by d."""
     tot = 0.0
+    if d >= RE_CUT:
+        for _, _, _, td, g in re_rows(d, f):
+            if td == QUEUE or (exact and td != exact) or (hi and td > hi): continue
+            tot += g
+        return tot
     q = f"SELECT trade_date, ABS(gross_amt) FROM trades WHERE snapshot_id=? AND tx_type='Sell' AND trade_date>? AND {W[f]}"
     for td, g in conn.execute(q, (LEG[d], d)):
         if (exact and td != exact) or (hi and td > hi): continue
@@ -120,14 +149,20 @@ def re_fwd(d, f, lo=None, hi=None, exact=None):
 
 def pending_by_class(d):
     """{(family, fund_id, 'YYYY-MM'): gross in class currency} at snapshot d, all forward dealing dates.
-    Non-RE from Simcorp (pbi_sells_by_class); RE from legacy + Simcorp-only + Simcorp's parked queue (2029-12)."""
+    Non-RE from Simcorp (pbi_sells_by_class). RE from RE_CUT: Simcorp (re_rows), queue under 2029-12; before RE_CUT:
+    legacy + Simcorp-only + Simcorp's parked queue (2029-12)."""
     out = defaultdict(float)
+    new_re = d >= RE_CUT
     for f, fid, td, g in conn.execute("SELECT fund_family, fund_id, trade_date, gross FROM pbi_sells_by_class WHERE snapshot_date=?", (d,)):
-        if f in RE and td != QUEUE: continue      # RE forward months come from the extract
+        if f in RE and (new_re or td != QUEUE): continue      # RE comes from re_rows, or (before RE_CUT) the extract
         if td > '2030-12-31': continue
         out[(f, fid, td[:7])] += g
     for fid, td, g in conn.execute("SELECT fund_id, trade_date, gross FROM pbi_adj_nicola_pd_class WHERE snapshot_date=?", (d,)):
         if td > d: out[('Private Debt', fid, td[:7])] -= g     # Nicola-family PD adjustment, per class
+    if new_re:
+        for f, fid, _, td, g in re_rows(d):
+            out[(f, fid, td[:7])] += g
+        return out
     for f in RE:
         q = f"SELECT fund_id, trade_date, ABS(gross_amt) FROM trades WHERE snapshot_id=? AND tx_type='Sell' AND trade_date>? AND {W[f]}"
         for fid, td, g in conn.execute(q, (LEG[d], d)):
@@ -151,9 +186,14 @@ def fof_by_class(d):
     Simcorp (pbi_fof_sells, accounts containing 'AVS') for non-RE and the RE queue; for RE dealing months, the legacy
     extract's fund accounts (dealer account starting '5', investor 'NICOLA ... FUND')."""
     out = defaultdict(float)
+    new_re = d >= RE_CUT
     for f, fid, acct, td, g in conn.execute("SELECT fund_family, fund_id, dealer_acct, trade_date, gross FROM pbi_fof_sells WHERE snapshot_date=?", (d,)):
-        if f not in FAMS or (f in RE and td != QUEUE): continue
+        if f not in FAMS or (f in RE and (new_re or td != QUEUE)): continue
         out[(f, fid, td[:7], investor_name(acct=acct))] += g
+    if new_re:
+        for f, fid, acct, td, g in re_rows(d):
+            if 'AVS' in acct: out[(f, fid, td[:7], investor_name(acct=acct))] += g
+        return out
     for f in RE:
         q = (f"SELECT fund_id, trade_date, ABS(gross_amt), investor_name FROM trades WHERE snapshot_id=? AND tx_type='Sell' AND trade_date>? "
              f"AND dealer_acct_num LIKE '5%' AND investor_name LIKE 'NICOLA % FUND' AND {W[f]}")

@@ -7,7 +7,8 @@ Since late September 2026, Simcorp has been the order book for the non-real-esta
 | Data | Where | Model / table |
 |---|---|---|
 | Non-real-estate funds, daily, from Sep 24 2026 | Power BI | Beta SIMCORP Pending Transactions (`8e49fab3-87e6-418e-98c3-89516f992d58`), `'Pending Trades'`, source = Simcorp |
-| Canadian + U.S. Real Estate LP, all dates | 2025_Octonward folder | `Nwm Pending Trades *.xlsx` → `python ingest.py` → `trades` |
+| Canadian + U.S. Real Estate LP, from Nov 9 2026 | Simcorp folder (the same file Power BI holds) | last `Nicola_PendingOrders_*.csv` of each day → `python -m pbi.re_files <dates>` → `pbi_re_sells` |
+| Canadian + U.S. Real Estate LP, before Nov 9 2026 | 2025_Octonward folder | `Nwm Pending Trades *.xlsx` → `python ingest.py` → `trades` |
 | Create date and real estate original dealing date, latest day only | Power BI | Pending Redemptions - Fund Impact (SLT, `d3def5f5-4cd7-49cd-893a-f692d54d574d`), `'Fabric_Pending Trades'` |
 | USD → CAD rate | Power BI | Beta SIMCORP model, `'FX Rates'` |
 
@@ -20,7 +21,8 @@ Before Sep 22 2026, Power BI's `'Pending Trades'` also holds the legacy history,
   - `Switch-Out` (a class switch inside one fund) and `Sell-Crystal`/`Buy-Crystal` pairs are excluded.
 - **Wire numbers:** Power BI shows wire numbers with a trailing `.0`. `parse.wire()` strips it.
 - **Nicola family Private Debt:** the nine requests (wires `20260925000531`–`549`) are removed from forward Private Debt views. Their totals are in `pbi_adj_nicola_pd`, and the per-class split is in `pbi_adj_nicola_pd_class`.
-- **Simcorp-only real estate requests:** a Simcorp real estate sell counts if it meets all of these:
+- **Real estate from Nov 9 2026 (`data.RE_CUT`):** read request by request from the day's last Simcorp file, which matches Power BI's Beta model to the cent once Sell-Crystal rows (`TxSubType` = Crystal) are skipped. The file is used because the Beta model has no real estate dealing-date column. A request parked at 2029-12-31 goes to the month of its `Original trade-date` (called `RE origin` before Oct 15 2026); if that date has passed, it is in the queue. Check the loader's printed totals against `queries/re_source_files.dax`.
+- **Simcorp-only real estate requests (before Nov 9 2026 only):** a Simcorp real estate sell counts if it meets all of these:
   - its create date is on or after Sep 24;
   - its dealing month is the create month + 6. The dealing date is `re_original_trade_date` when the trade date is the 2029-12-31 placeholder, otherwise the trade date;
   - the extract has no order in the same class with the same dealing date and an amount within 2%.
@@ -33,7 +35,7 @@ Before Sep 22 2026, Power BI's `'Pending Trades'` also holds the legacy history,
 
 ## Daily / weekly refresh
 
-1. Ingest new legacy files: `python ingest.py`. The Sep 30 2026 file must not be re-ingested (it was locked on 2026-11-02), so when that file's hash has changed, stage the new files in a separate folder and use `--folder`.
+1. Load real estate from Simcorp: `python -m pbi.re_files <date> ...`. Legacy files are no longer needed for current views; to keep history, ingest them with `python ingest.py`. The Sep 30 2026 file must not be re-ingested (it was locked on 2026-11-02), so when that file's hash has changed, stage the new files in a separate folder and use `--folder`.
 2. Through the claude.ai Power BI connector, run each query in `pbi/queries/`, changing the dates in each. Save each result and load it:
    ```
    python -m pbi.load sells        <result>   # simcorp_sells_daily.dax
@@ -46,7 +48,7 @@ Before Sep 22 2026, Power BI's `'Pending Trades'` also holds the legacy history,
    A result can be the saved connector output (JSON) or a plain `.csv` file.
 3. Build the pages:
    ```
-   python -m pbi.pages.pending_by_month_page 2026-11-06 1.40117 out.html
+   python -m pbi.pages.pending_by_month_page 2026-11-12 1.40 out.html
    python -m pbi.pages.refresh_pages <folder of downloaded live pages>
    python -m pbi.pages.activity <activity_orders result> <folder of downloaded live pages>
    ```
