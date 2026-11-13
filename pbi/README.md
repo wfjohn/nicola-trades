@@ -51,6 +51,7 @@ Before Sep 22 2026, Power BI's `'Pending Trades'` also holds the legacy history,
    ```
    python -m pbi.pages.pending_by_month_page 2026-11-12 1.40 out.html
    python -m pbi.pages.refresh_daily <folder of downloaded live pages>   # PE queue, RE queue, Pipeline (from Nov 12 2026)
+   python -m pbi.pages.refresh_monthly <folder of downloaded live pages> # Monthly Buildup (rolling ten months), Six-Month Redemptions by Fund
    python -m pbi.pages.refresh_pages <folder of downloaded live pages>   # older; anchored on the Nov 7 wording
    python -m pbi.pages.activity <activity_orders result> <folder of downloaded live pages>
    ```
