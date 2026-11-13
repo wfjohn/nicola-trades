@@ -35,7 +35,8 @@ Before Sep 22 2026, Power BI's `'Pending Trades'` also holds the legacy history,
 
 ## Daily / weekly refresh
 
-1. Load real estate from Simcorp: `python -m pbi.re_files <date> ...`. Legacy files are no longer needed for current views; to keep history, ingest them with `python ingest.py`. The Sep 30 2026 file must not be re-ingested (it was locked on 2026-11-02), so when that file's hash has changed, stage the new files in a separate folder and use `--folder`.
+1. Load each new date from the Simcorp folder (each day's last file equals Power BI to the cent):
+   `python -m pbi.re_files <dates>` (real estate, by request) and `python -m pbi.daily_files load <dates>` (non-real-estate daily totals and the Nicola PD adjustment; `check <date>` compares with what is stored). Legacy files are no longer needed for current views; to keep history, ingest them with `python ingest.py`. The Sep 30 2026 file must not be re-ingested (it was locked on 2026-11-02), so when that file's hash has changed, stage the new files in a separate folder and use `--folder`.
 2. Through the claude.ai Power BI connector, run each query in `pbi/queries/`, changing the dates in each. Save each result and load it:
    ```
    python -m pbi.load sells        <result>   # simcorp_sells_daily.dax
@@ -49,7 +50,8 @@ Before Sep 22 2026, Power BI's `'Pending Trades'` also holds the legacy history,
 3. Build the pages:
    ```
    python -m pbi.pages.pending_by_month_page 2026-11-12 1.40 out.html
-   python -m pbi.pages.refresh_pages <folder of downloaded live pages>
+   python -m pbi.pages.refresh_daily <folder of downloaded live pages>   # PE queue, RE queue, Pipeline (from Nov 12 2026)
+   python -m pbi.pages.refresh_pages <folder of downloaded live pages>   # older; anchored on the Nov 7 wording
    python -m pbi.pages.activity <activity_orders result> <folder of downloaded live pages>
    ```
    `refresh_pages` and `activity` edit the live pages in place by finding their current wording. When a page's wording changes, update the matching anchors.
